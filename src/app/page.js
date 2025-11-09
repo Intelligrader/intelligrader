@@ -3,6 +3,7 @@
 import * as motion from "motion/react-client";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from 'next/navigation';
+import { delay } from "framer-motion";
 
 // >>> Cookies helpers
 function setCookie(name, value, days = 30) {
@@ -51,10 +52,12 @@ export default function Home() {
   // --- Typing reactivity for Techno mode ---
   const [intensity, setIntensity] = useState(1);
   const intensityTimer = useRef(null);
-  function bumpIntensity() {
-    setIntensity(1.25); // temporary "boost" multiplier
-    if (intensityTimer.current) clearTimeout(intensityTimer.current);
-    intensityTimer.current = setTimeout(() => setIntensity(1), 900); // back to calm
+  function bumpIntensity(value) {
+    setIntensity(value); // temporary "boost" multiplier
+    if (intensityTimer.current) {
+      clearTimeout(intensityTimer.current);
+    }
+    intensityTimer.current = setTimeout(() => setIntensity(1), 1000); // back to calm
   }
 
 
@@ -416,7 +419,6 @@ export default function Home() {
           <>
             {/* --- BLACK BACKGROUND --- */}
             <div className="fixed inset-0 bg-black z-0" />
-
             {/* --- PULSING GRID --- */}
             <div
               className="fixed inset-0 pointer-events-none z-[1]"
@@ -483,7 +485,7 @@ export default function Home() {
                   opacity: [0.9, 0],
                 }}
                 transition={{
-                  duration: 1.8 / intensity,
+                  duration: 1.8,
                   repeat: Infinity,
                   ease: "easeOut",
                   delay: 0.5
@@ -501,7 +503,7 @@ export default function Home() {
                 }}
                 animate={{
                   scale: [1, 9 * intensity],
-                  opacity: [0.8, 0],
+                  opacity: [0.8, 0.2],
                   borderColor: [
                     "rgba(168,85,247,0.8)",
                     "rgba(255,255,255,0.9)",
@@ -509,7 +511,7 @@ export default function Home() {
                   ],
                 }}
                 transition={{
-                  duration: 1.8 / intensity,
+                  duration: 1.8,
                   repeat: Infinity,
                   ease: "easeOut",
                   delay: 0.2,
@@ -550,7 +552,7 @@ export default function Home() {
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value);
-                    bumpIntensity(); // triggers the visual multiplier
+                    bumpIntensity(1.25); // triggers the visual multiplier
                   }}
                 />
                 <button
