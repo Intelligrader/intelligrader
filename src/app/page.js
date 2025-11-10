@@ -686,6 +686,32 @@ export default function Home() {
         </motion.div>
       )}
 
+      {/* --- Tiny Easter Egg: 2D in a 3D World --- */}
+      <div className="fixed right-3 bottom-[4.5rem] z-[90]">
+        <button
+          aria-label="2D in a 3D World"
+          onClick={() => router.push('/2d-in-3d-world')}
+          className="group w-8 h-8 rounded-full bg-black/30 backdrop-blur-md border border-white/20
+                    flex items-center justify-center opacity-40 hover:opacity-100
+                    transition-all duration-300 hover:scale-110 shadow-[0_0_8px_rgba(0,0,0,0.25)]"
+          title="2D in a 3D World"
+        >
+          {/* Minimalistic “2D cube” icon */}
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="white" strokeWidth="2">
+            <rect x="5" y="5" width="10" height="10" rx="2" />
+            <path d="M5 15l4 4h10v-10l-4-4" />
+          </svg>
+        </button>
+
+        {/* Hover tooltip */}
+        <div className="pointer-events-none absolute right-0 mr-1 -translate-y-2 hidden group-hover:block">
+          <div className="px-2 py-1 text-[10px] rounded bg-black/70 text-white shadow whitespace-nowrap">
+            2D in a 3D World
+          </div>
+        </div>
+      </div>
+
+
       <footer className="w-full py-6 bg-purple-700 text-white z-[50] text-center text-sm absolute bottom-0">
         © 2025 Intelligrader. All rights reserved. | <a href="https://policies.google.com/privacy" className="text-blue-300 hover:underline">Privacy Policy</a> | <button onClick={handleTOS} className="text-blue-300 hover:underline">Terms of Service</button>
       </footer>
