@@ -38,3 +38,38 @@ export function drawTrees(ctx, treeImg, trees, camX, camY, scale) {
   // reset alpha for everything else
   ctx.globalAlpha = 1;
 }
+
+export function generateTreeGrid(worldW, worldH, player, TILE_SIZE = 16) {
+  const TILES_X = Math.floor(worldW / TILE_SIZE);
+  const TILES_Y = Math.floor(worldH / TILE_SIZE);
+
+  const TREE_SPACING_X = 5; // tiles between trees horizontally
+  const TREE_SPACING_Y = 6; // tiles between trees vertically
+
+  const trees = [];
+  for (let ty = 2; ty < TILES_Y; ty += TREE_SPACING_Y) {
+    for (let tx = 2; tx < TILES_X; tx += TREE_SPACING_X) {
+      const treeX = tx * TILE_SIZE;
+      const treeY = ty * TILE_SIZE - 5 * TILE_SIZE;
+      trees.push({
+        x: treeX,
+        y: treeY,
+        w: 48,
+        h: 96,
+        collisionBoxes: [
+          { x: TILE_SIZE, y: 5 * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE },
+        ],
+      });
+    }
+  }
+
+  // clear player spawn area
+  const SPAWN_RADIUS = 64;
+  for (let i = trees.length - 1; i >= 0; i--) {
+    const dx = trees[i].x - player.x;
+    const dy = trees[i].y - player.y;
+    if (Math.sqrt(dx * dx + dy * dy) < SPAWN_RADIUS) trees.splice(i, 1);
+  }
+
+  return trees;
+}

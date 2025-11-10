@@ -57,6 +57,7 @@ export function createDayNight({
    * Pass your player & camera for night glow.
    * scene = { player, camX, camY, scale }
    */
+  
   function render(ctx, w, h, scene) {
     if (w !== lastW || h !== lastH || stars.length === 0) regenStars(w, h);
 
@@ -137,6 +138,10 @@ export function createDayNight({
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
   }
-
-  return { update, render, getCycle };
+  
+  function skipMinutes(minutes) {
+    const delta = minutes / (24 * 60); // minutes -> day fraction
+    t = (t + delta) % 1;
+  }
+return { update, render, getCycle, skipMinutes };
 }
