@@ -5,7 +5,13 @@ export function loadImage(src) {
 }
 
 export function loadItemSprites(itemsData) {
-  const map = {};
-  itemsData.forEach((it) => { map[it.id] = loadImage(it.src); });
-  return map;
+  const sprites = {};
+
+  for (const item of itemsData) {
+    const img = new Image();
+    img.src = item.src;
+    sprites[item.id] = img;
+  }
+
+  return sprites;
 }

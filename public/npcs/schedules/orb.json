@@ -1,0 +1,9 @@
+{
+  "loop": true,
+  "relative": true,
+  "speed": 0.5,
+  "waypoints": [
+    { "x":  50, "y": 0, "wait": 0 },
+    { "x": -50, "y": 0, "wait": 0 }
+  ]
+}

@@ -19,3 +19,24 @@ export function checkTreeCollisions(px, py, playerSize, trees) {
   }
   return false;
 }
+
+export function checkBlockCollisions(px, py, playerSize, worldObjects, tileSize = 8) {
+  for (const obj of worldObjects) {
+    if (!obj.def?.solid) continue;
+
+    const bx = obj.x;
+    const by = obj.y;
+    const bw = obj.def.width || tileSize;
+    const bh = obj.def.height || tileSize;
+
+    if (
+      px + playerSize > bx &&
+      px - playerSize < bx + bw &&
+      py + playerSize > by &&
+      py - playerSize < by + bh
+    ) {
+      return true;
+    }
+  }
+  return false;
+}

@@ -1,3 +1,6 @@
+// stuff/draw/hotbar.js
+// Dynamic hotbar linked to inventory (draws items, counts, selection, number keys)
+
 export const HOTBAR_SLOTS = 9;
 export const HB_OUTER = 2;
 export const HB_DIV = 2;
@@ -40,13 +43,62 @@ export function getHotbarSlotRects(layout) {
   return rects;
 }
 
-export function drawHotbar(ctx, hotbarImg, layout, selectedSlot) {
+/**
+ * Draws the hotbar + items + stack counts.
+ * Accepts either slot shape {id,count} or {itemId,count}.
+ */
+export function drawHotbar(ctx, hotbarImg, layout, selectedSlot, hotbarItems = [], itemSprites = {}) {
   if (!layout) return;
+
   ctx.drawImage(hotbarImg, layout.x, layout.y, layout.w, layout.h);
   const rects = getHotbarSlotRects(layout);
-  const r = rects[selectedSlot];
-  if (!r) return;
-  ctx.lineWidth = Math.max(1, Math.floor(layout.scale));
-  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
-  ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+  const pad = Math.max(2, Math.floor(layout.scale * 2));
+
+  rects.forEach((r, i) => {
+    const slot = hotbarItems[i];
+    const key = slot?.id ?? slot?.itemId;
+    if (!key) return;
+
+    const img = itemSprites[key];
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, r.x + pad, r.y + pad, r.w - pad * 2, r.h - pad * 2);
+    }
+
+    const count = slot?.count ?? 0;
+    if (count > 1) {
+      const tx = r.x + r.w - 3;
+      const ty = r.y + r.h - 4;
+      ctx.font = `12px monospace`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'alphabetic';
+
+      // shadow for readability
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      for (let ox = -1; ox <= 1; ox++) {
+        for (let oy = -1; oy <= 1; oy++) {
+          ctx.fillText(String(count), tx + ox, ty + oy);
+        }
+      }
+      ctx.fillStyle = '#fff';
+      ctx.fillText(String(count), tx, ty);
+
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+    }
+  });
+
+  const sel = rects[selectedSlot];
+  if (sel) {
+    ctx.lineWidth = Math.max(1, Math.floor(layout.scale));
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeRect(sel.x + 1, sel.y + 1, sel.w - 2, sel.h - 2);
+  }
+}
+
+export function handleHotbarKeys(e, currentSelected) {
+  if (e.key >= '1' && e.key <= '9') {
+    const n = parseInt(e.key, 10) - 1;
+    return Math.max(0, Math.min(n, HOTBAR_SLOTS - 1));
+  }
+  return currentSelected;
 }

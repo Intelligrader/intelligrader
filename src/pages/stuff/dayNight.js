@@ -34,15 +34,34 @@ export function createDayNight({
   }
 
   function getCycle() {
-    // Noon at t=0.25, Midnight at t=0.75
-    const dayLight = clamp01(0.5 * (Math.cos(2 * Math.PI * (t - 0.25)) + 1)); // 1 at noon, 0 at midnight
+    // t = 0 → midnight, 0.25 → 6 AM, 0.5 → noon, 0.75 → 6 PM, 1 → next midnight
+
+    const sunrise = 0.15;  // 6 AM
+    const sunset = 0.95;   // 6 PM
+    let dayLight = 0;
+
+    // Before sunrise → fully dark
+    if (t < sunrise) {
+      dayLight = 0;
+    }
+    // Between sunrise and sunset → cosine-based daylight arc
+    else if (t >= sunrise && t <= sunset) {
+      const mid = (sunrise + sunset) / 2; // noon
+      const phase = (t - sunrise) / (sunset - sunrise); // 0→1 within daylight
+      dayLight = Math.sin(phase * Math.PI); // smooth sunrise→sunset (0→1→0)
+    }
+    // After sunset → night
+    else {
+      dayLight = 0;
+    }
+
     const darkness = 1 - dayLight;
 
-    // Warmth around sunrise/sunset (~0.25 width total around 0.0/0.5)
-    const warmBand = 0.12;
-    const dawnWarm = clamp01(1 - Math.abs(t - 0.00) / warmBand);
-    const duskWarm = clamp01(1 - Math.abs(t - 0.50) / warmBand);
-    const warm = Math.max(dawnWarm, duskWarm) * (0.65 + 0.35 * dayLight); // brighter when not full night
+    // Warm tint only near sunrise/sunset
+    const warmBand = 0.08;
+    const dawnWarm = clamp01(1 - Math.abs(t - sunrise) / warmBand);
+    const duskWarm = clamp01(1 - Math.abs(t - sunset) / warmBand);
+    const warm = Math.max(dawnWarm, duskWarm) * (0.6 + 0.4 * dayLight);
 
     return { t, dayLight, darkness, warm };
   }
@@ -54,34 +73,32 @@ export function createDayNight({
 
   /**
    * Render all day/night effects on top of the world & entities (before HUD).
-   * Pass your player & camera for night glow.
+   * (Scene arg kept for API compatibility; not used since player glow was removed.)
    * scene = { player, camX, camY, scale }
    */
-  
-  function render(ctx, w, h, scene) {
+  function render(ctx, w, h, scene, lights = []) {
     if (w !== lastW || h !== lastH || stars.length === 0) regenStars(w, h);
-
     const { dayLight, darkness, warm } = getCycle();
 
-    // 1) Ambient multiply (darker at night) with subtle vertical gradient
+    // 1️⃣ Draw ambient dark overlay
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    const topA = mix(0.10, 0.45, darkness);   // alpha scales with night
-    const botA = mix(0.15, 0.60, darkness);
+    const topA = mix(0.05, 0.65, darkness);
+    const botA = mix(0.10, 0.75, darkness);
     g.addColorStop(0, `rgba(0, 8, 22, ${topA})`);
     g.addColorStop(1, `rgba(0, 12, 28, ${botA})`);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
 
-    // 2) Golden hour tint near sunrise/sunset (screen blend)
+    // 2️⃣ Warm sunset/sunrise tint
     if (warm > 0.01) {
       ctx.save();
       ctx.globalCompositeOperation = 'screen';
       const gw = ctx.createLinearGradient(0, 0, 0, h);
-      const topWarm = 0.35 * warm * clamp01(1 - darkness); // not too strong at night
-      const botWarm = 0.15 * warm * clamp01(1 - darkness);
+      const topWarm = 0.3 * warm * clamp01(1 - darkness);
+      const botWarm = 0.1 * warm * clamp01(1 - darkness);
       gw.addColorStop(0, `rgba(255, 185, 95, ${topWarm})`);
       gw.addColorStop(1, `rgba(255, 130, 70, ${botWarm})`);
       ctx.fillStyle = gw;
@@ -89,16 +106,16 @@ export function createDayNight({
       ctx.restore();
     }
 
-    // 3) Stars at night
+    // 3️⃣ Stars (faint)
     if (darkness > 0.25) {
       ctx.save();
-      const k = (darkness - 0.25) / 0.75; // fade in stars
+      const k = (darkness - 0.25) / 0.75;
       ctx.globalAlpha = clamp01(k) * 0.9;
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      const now = performance.now ? performance.now() / 1000 : 0;
+      const now = performance.now() / 1000;
       for (const s of stars) {
-        const tw = 0.6 + 0.4 * Math.sin(now * s.tw + s.ph); // 0.2..1.0
+        const tw = 0.6 + 0.4 * Math.sin(now * s.tw + s.ph);
         const a = s.a * (0.4 + 0.6 * tw);
         ctx.globalAlpha = clamp01(k) * a;
         ctx.rect(s.x, s.y, s.r, s.r);
@@ -107,41 +124,36 @@ export function createDayNight({
       ctx.restore();
     }
 
-    // 4) Player glow at night (screen/lighter)
-    if (scene && scene.player && scene.scale != null) {
-      const { player, camX, camY, scale } = scene;
-      const px = (player.x - camX) * scale;
-      const py = (player.y - camY) * scale;
-      const radius = (60 + 50 * darkness) * scale;
-      const grad = ctx.createRadialGradient(px, py, 0, px, py, radius);
-      const a0 = 0.65 * darkness;
-      grad.addColorStop(0, `rgba(255, 245, 180, ${a0})`);
-      grad.addColorStop(1, `rgba(255, 245, 180, 0)`);
+    // 4️⃣ Light sources — from campfires or lamps
+    if (darkness > 0.2 && lights?.length) {
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = grad;
-      ctx.fillRect(px - radius, py - radius, radius * 2, radius * 2);
+      for (const light of lights) {
+        const { x, y, radius = 80, intensity = 3.0 } = light;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        grad.addColorStop(0, `rgba(255, 200, 120, ${0.65 * intensity * darkness})`);
+        grad.addColorStop(1, 'rgba(255, 200, 120, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      }
       ctx.restore();
     }
 
-    // 5) Vignette (stronger at night)
+    // 5️⃣ Subtle vignette
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
-    const vg = ctx.createRadialGradient(
-      w / 2, h / 2, Math.min(w, h) / 2.2,
-      w / 2, h / 2, Math.max(w, h) / 1.0
-    );
-    const vA = mix(0.10, 0.45, darkness);
+    const vg = ctx.createRadialGradient(w / 2, h / 2, w / 3, w / 2, h / 2, w);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, `rgba(0,0,0,${vA})`);
+    vg.addColorStop(1, `rgba(0,0,0,${mix(0.1, 0.6, darkness)})`);
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
   }
-  
+
   function skipMinutes(minutes) {
     const delta = minutes / (24 * 60); // minutes -> day fraction
     t = (t + delta) % 1;
   }
-return { update, render, getCycle, skipMinutes };
+
+  return { update, render, getCycle, skipMinutes };
 }

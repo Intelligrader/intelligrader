@@ -1,5 +1,7 @@
-import { VIEW_W, VIEW_H } from '../constants.js';
+import { VIEW_W, VIEW_H, TILE_SIZE } from '../constants.js';
+import { DroppedItem } from '../world/droppedItem.js';
 
+const droppedItems = [];
 
 export function drawWorld(ctx, worldImg, camX, camY, viewW, viewH) {
   ctx.drawImage(worldImg, camX, camY, viewW, viewH, 0, 0, VIEW_W, VIEW_H);
@@ -39,37 +41,72 @@ export function drawTrees(ctx, treeImg, trees, camX, camY, scale) {
   ctx.globalAlpha = 1;
 }
 
-export function generateTreeGrid(worldW, worldH, player, TILE_SIZE = 16) {
-  const TILES_X = Math.floor(worldW / TILE_SIZE);
-  const TILES_Y = Math.floor(worldH / TILE_SIZE);
+// stuff/draw/world.js
 
-  const TREE_SPACING_X = 5; // tiles between trees horizontally
-  const TREE_SPACING_Y = 6; // tiles between trees vertically
+export function generateTreesByRow(worldW, worldH, playerX, playerY) {
+  const rows = Math.floor(worldH / TILE_SIZE);
+  const cols = Math.floor(worldW / TILE_SIZE);
+  const TREE_DENSITY = 0.02; // sparser
+  const CLEAR_RADIUS = 5;    // tiles around spawn
+
+  const px = Math.floor(playerX / TILE_SIZE);
+  const py = Math.floor(playerY / TILE_SIZE);
 
   const trees = [];
-  for (let ty = 2; ty < TILES_Y; ty += TREE_SPACING_Y) {
-    for (let tx = 2; tx < TILES_X; tx += TREE_SPACING_X) {
-      const treeX = tx * TILE_SIZE;
-      const treeY = ty * TILE_SIZE - 5 * TILE_SIZE;
-      trees.push({
-        x: treeX,
-        y: treeY,
-        w: 48,
-        h: 96,
-        collisionBoxes: [
-          { x: TILE_SIZE, y: 5 * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE },
-        ],
-      });
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (Math.abs(col - px) <= CLEAR_RADIUS && Math.abs(row - py) <= CLEAR_RADIUS) continue;
+      if (Math.random() < TREE_DENSITY) {
+        trees.push({
+          x: col * TILE_SIZE,
+          y: row * TILE_SIZE - 5 * TILE_SIZE,
+          w: 48,
+          h: 96,
+          collisionBoxes: [{ x: TILE_SIZE, y: 5 * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE }],
+        });
+      }
     }
   }
-
-  // clear player spawn area
-  const SPAWN_RADIUS = 64;
-  for (let i = trees.length - 1; i >= 0; i--) {
-    const dx = trees[i].x - player.x;
-    const dy = trees[i].y - player.y;
-    if (Math.sqrt(dx * dx + dy * dy) < SPAWN_RADIUS) trees.splice(i, 1);
-  }
-
   return trees;
+}
+
+export function spawnDroppedItem(id, count, x, y) {
+  const vx = (Math.random() - 0.5) * 1.5;
+  const vy = (Math.random() - 0.5) * 1.5;
+  const item = new DroppedItem(id, count, x, y, vx, vy);
+  droppedItems.push(item);
+}
+
+export function updateDroppedItems(deltaTime, worldHeight) {
+  for (const item of droppedItems) item.update(deltaTime, /*gravity*/0.4, /*groundY*/worldHeight);
+  // remove expired ones
+  for (let i = droppedItems.length - 1; i >= 0; i--) {
+    if (droppedItems[i]._despawn) droppedItems.splice(i, 1);
+  }
+}
+
+export function drawDroppedItems(ctx, camX, camY, scale, itemSprites) {
+  for (const item of droppedItems) item.draw(ctx, camX, camY, scale, itemSprites);
+}
+
+export function getDroppedItems() {
+  return droppedItems;
+}
+
+export function tryPickupItems(player, inventory) {
+  for (let i = droppedItems.length - 1; i >= 0; i--) {
+    const item = droppedItems[i];
+    const dx = player.x - item.x;
+    const dy = player.y - item.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // If player close enough & delay passed
+    if (dist < 24 && item.canBePickedUp()) {
+      const added = inventory.addItem({ id: item.id, count: item.count });
+      if (added) {
+        console.log(`✅ Picked up ${item.count}x ${item.id}`);
+        droppedItems.splice(i, 1);
+      }
+    }
+  }
 }
