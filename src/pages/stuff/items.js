@@ -34,6 +34,7 @@ export const itemsData = [
     description: 'Placeable campfire that lights up the night.',
     maxStack: 99,
     placeBlock: 'campfire',
+    placeOnPlayer: false,
   },
   {
     id: 'fence',
@@ -42,19 +43,14 @@ export const itemsData = [
     description: 'Placeable wooden fence segment.',
     maxStack: 99,
     placeBlock: 'fence',
+    placeOnPlayer: true,
   },
 ];
 
 export function getItemID(slotOrId) {
   if (!slotOrId) return null;
-
-  // Already an ID string
   if (typeof slotOrId === 'string') return slotOrId;
-
-  // New-style inventory slot { id, count }
   if (slotOrId.id) return slotOrId.id;
-
-  // Old-style inventory slot { itemId, count }
   if (slotOrId.itemId) return slotOrId.itemId;
 
   return null;

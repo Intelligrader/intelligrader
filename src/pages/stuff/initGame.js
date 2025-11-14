@@ -33,13 +33,30 @@ import {
   autoAttachSchedules, removeAllNPCs,
 } from './npcs/npcManager.js';
 import { Soundtrack } from './audio/soundtrack.js';
-
-import { placeBlockAt } from './world/placeBlock.js';
 import { updateTreeFade } from './world/treeFade.js';
 import { drawDialogueBubble } from './draw/dialogueBubble.js';
+import { drawHUD } from './draw/hud.js';
+import { loadPlayerSprites, drawAnimatedPlayer } from './draw/playerSprite.js';
 
 // Single player instance for the module (used by getPlayerPosition at bottom)
-const player = { x: 200, y: 200, speed: 1.1, size: 8 };
+const player = {
+  x: 200,
+  y: 200,
+  speed: 1.1,
+  size: 12,
+  hp: 100,
+  maxHp: 100,
+  stamina: 80,
+  maxStamina: 80,
+  mana: 50,
+  maxMana: 50,
+
+  // animation state:
+  dir: 0,
+  animFrame: 0,
+  animTimer: 0,
+  isMoving: false,
+};
 
 export function initGame({ canvas, router, dialogueRef }) {
   // ---------- canvas ----------
@@ -108,7 +125,7 @@ export function initGame({ canvas, router, dialogueRef }) {
   };
 
   let hotbarItems = [];
-  const inventory   = new Inventory(9, 3, items => (hotbarItems = items));
+  const inventory = new Inventory(items => (hotbarItems = items));
   const itemSprites = loadItemSprites(itemsData);
   const dayNight    = createDayNight({
     dayLengthSec: 100000,
@@ -122,12 +139,13 @@ export function initGame({ canvas, router, dialogueRef }) {
   // images (lazy)
   const hotbarImg = loadImage('/hotbar.png');
   const treeImg   = loadImage('/tree.png');
+  const fenceAtlasImg = loadImage('/tilesets/fence.png');
 
   // ---------- helpers ----------
   function placeBlock(id, x, y) {
     const def = allBlocks.find(b => b.id === id);
     if (!def) {
-      dialogueRef.current = { text: `Block "${id}" not found.`, frame: 0, duration: 100 };
+      // dialogueRef.current = { text: `Block "${id}" not found.`, frame: 0, duration: 100 };
       return;
     }
 
@@ -135,7 +153,7 @@ export function initGame({ canvas, router, dialogueRef }) {
     const sy = Math.floor(y / TILE_SIZE) * TILE_SIZE;
 
     if (worldObjects.some(o => o.x === sx && o.y === sy)) {
-      dialogueRef.current = { text: 'Block already exists here.', frame: 0, duration: 80 };
+      // dialogueRef.current = { text: 'Block already exists here.', frame: 0, duration: 80 };
       return;
     }
 
@@ -152,7 +170,7 @@ export function initGame({ canvas, router, dialogueRef }) {
 
     // --- Place it in the world ---
     worldObjects.push({ id, x: sx, y: sy, def });
-    dialogueRef.current = { text: `${id} placed`, frame: 0, duration: 100 };
+    // dialogueRef.current = { text: `${id} placed`, frame: 0, duration: 100 };
 
     // --- Consume item from inventory/hotbar ---
     const slotIndex = state.placingBlock?.slotIndex;
@@ -232,17 +250,18 @@ export function initGame({ canvas, router, dialogueRef }) {
         slotIndex,
         x: player.x,
         y: player.y,
+        fromCommand: false,
       };
     },
     onCraft: craftedId => {
       if (!craftedId) return;
       // Simple generic behaviour: add one of the crafted output to inventory
       inventory.addItem({ id: craftedId, count: 1 });
-      dialogueRef.current = {
-        text: `Crafted ${craftedId}!`,
-        frame: 0,
-        duration: 120,
-      };
+      // dialogueRef.current = {
+      //   text: `Crafted ${craftedId}!`,
+      //   frame: 0,
+      //   duration: 120,
+      // };
     },
     onQuit: () => router.push('/'),
     commands,
@@ -291,6 +310,7 @@ export function initGame({ canvas, router, dialogueRef }) {
       removeAllNPCs();
       spawnTestNPCs();
       autoAttachSchedules();
+      loadPlayerSprites();
 
       // start game loop
       rafId = requestAnimationFrame(loop);
@@ -311,15 +331,20 @@ export function initGame({ canvas, router, dialogueRef }) {
 
     // movement
     let dx = 0, dy = 0;
+    player.isMoving = false;
+    if (dx !== 0 || dy !== 0) {
+      player.isMoving = true;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        player.dir = dx > 0 ? 2 : 1; // right : left
+      } else if (dy !== 0) {
+        player.dir = dy > 0 ? 0 : 3; // down : up
+      }
+    }
     if (keys['w'] || keys['ArrowUp'])    dy -= 1;
     if (keys['s'] || keys['ArrowDown'])  dy += 1;
     if (keys['a'] || keys['ArrowLeft'])  dx -= 1;
     if (keys['d'] || keys['ArrowRight']) dx += 1;
-    if (dx && dy) {
-      const len = Math.hypot(dx, dy);
-      dx /= len;
-      dy /= len;
-    }
 
     // Player position with collision
     const nx = clamp(
@@ -381,10 +406,53 @@ export function initGame({ canvas, router, dialogueRef }) {
     if (worldMap && tilesetImg) {
       drawWorld(ctx, worldMap, tilesetImg, ax, ay, vw, vh, zoom);
     }
-    drawPlayer(ctx, player, ax, ay, scale);
+    drawAnimatedPlayer(ctx, player, ax, ay, scale);
     drawNPCs(ctx, ax, ay, scale);
     drawDroppedItems(ctx, ax, ay, scale, itemSprites);
     drawTrees(ctx, treeImg, trees, ax, ay, scale);
+    drawHUD(ctx, player, VIEW_W, VIEW_H);
+
+    // --- draw selected hotbar item above player ---
+    const selectedSlot = escapeMenuState.selectedSlot;
+    const selectedItem = hotbarItems[selectedSlot];
+
+    if (selectedItem && selectedItem.id) {
+
+      const screenX = Math.round((player.x - camX) * scale);
+      const screenY = Math.round((player.y - camY) * scale);
+      const itemSize = 24;
+
+      // Special case for fence: draw atlas [1,4]
+      if (selectedItem.id === 'fence') {
+        if (fenceAtlasImg.complete && fenceAtlasImg.naturalWidth > 0) {
+          const ts = TILE_SIZE;
+          const col = 1;
+          const row = 4;
+          const sx = col * ts;
+          const sy = row * ts;
+          ctx.drawImage(
+            fenceAtlasImg,
+            sx, sy, ts, ts,
+            screenX - itemSize/2,
+            screenY - player.size - itemSize - 2,
+            itemSize, itemSize
+          );
+        }
+      } else {
+
+        // normal item icon behavior
+        const img = itemSprites[selectedItem.id];
+        if (img && img.complete && img.naturalWidth > 0) {
+          ctx.drawImage(
+            img,
+            screenX - itemSize/2,
+            screenY - player.size - itemSize - 2,
+            itemSize, itemSize
+          );
+        }
+      }
+    }
+
 
     // blocks
     for (const obj of worldObjects) {
@@ -420,6 +488,50 @@ export function initGame({ canvas, router, dialogueRef }) {
             g.sx, g.sy, g.sw, g.sh,
             screenX, screenY, g.dw, g.dh,
           );
+
+          const sx = Math.floor(x / TILE_SIZE) * TILE_SIZE;
+          const sy = Math.floor(y / TILE_SIZE) * TILE_SIZE;
+          const slot = typeof slotIndex === 'number' ? inventory?.slots?.[slotIndex] : null;
+          const itemDef = slot?.itemId ? itemsData.find(i => i.id === slot.itemId) : null;
+          const allowOnPlayer = itemDef?.placeOnPlayer ?? false;
+
+          // --- Player collision check ---
+          if (!allowOnPlayer) {
+            const PLAYER_WIDTH  = 0.85 * TILE_SIZE;
+            const PLAYER_HEIGHT = 0.85 * TILE_SIZE;
+            const blockLeft   = x;
+            const blockRight  = x + TILE_SIZE;
+            const blockTop    = y;
+            const blockBottom = y + TILE_SIZE;
+            const playerLeft  = player.x - PLAYER_WIDTH / 2;
+            const playerRight = player.x + PLAYER_WIDTH / 2;
+            const playerTop   = player.y - PLAYER_HEIGHT / 2;
+            const playerBottom= player.y + PLAYER_HEIGHT / 2;
+
+            const overlapsPlayer = blockRight > playerLeft && blockLeft < playerRight && blockBottom > playerTop && blockTop < playerBottom;
+
+            if(overlapsPlayer) {
+              ctx.fillStyle = 'red';           // color of the rectangle
+              ctx.fillRect(screenX + 1.5, screenY + 10, TILE_SIZE * 2, TILE_SIZE * 2);
+            } 
+          }
+
+          // --- Distance check ---
+          const MAX_PLACE_DIST = 48;
+          const dx = x + TILE_SIZE / 2 - player.x;
+          const dy = y + TILE_SIZE / 2 - player.y;
+          if ((dx*dx + dy*dy) > MAX_PLACE_DIST * MAX_PLACE_DIST) {
+            ctx.fillStyle = 'red';           // color of the rectangle
+            ctx.fillRect(screenX + 1.5, screenY + 10, TILE_SIZE * 2, TILE_SIZE * 2);
+          }
+
+          if (worldObjects.some(o => o.x === sx && o.y === sy)) {
+            ctx.fillStyle = 'red';           // color of the rectangle
+            ctx.fillRect(screenX + 1.5, screenY + 10, TILE_SIZE * 2, TILE_SIZE * 2);
+          } else {
+            ctx.fillStyle = 'green';           // color of the rectangle
+            ctx.fillRect(screenX + 1.5, screenY + 10, TILE_SIZE * 2, TILE_SIZE * 2);
+          }
         } else {
           const size = (def.width || TILE_SIZE) * scale;
           ctx.drawImage(img, screenX, screenY, size, size);

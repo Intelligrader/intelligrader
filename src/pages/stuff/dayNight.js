@@ -41,7 +41,7 @@ export function createDayNight({
 
   // daylight model (nonlinear, warm at edges of day)
   function getCycle() {
-    const sunrise = 0.22;  // ~5:15
+    const sunrise = 0.15;  // ~5:15
     const sunset  = 0.78;  // ~18:45
 
     let dayLight = 0;
@@ -167,8 +167,7 @@ export function createDayNight({
       bctx.fill();
     }
     bctx.restore();
-
-    // 🔥 subtle warm halo (additive on main ctx)
+    
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (const L of lights) {

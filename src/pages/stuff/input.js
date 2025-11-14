@@ -50,11 +50,12 @@ export function createInput(
     keys[e.key] = true;
 
     // Cancel placement
-    if (e.key === 'Escape' && state.placingBlock) {
+    if (e.key === 'Escape' && state.placingBlock?.fromCommand) {
       state.placingBlock = null;
       say('Placement cancelled');
       return;
     }
+
 
     // Crafting
     if (e.key.toLowerCase() === 'c') return craftingMenu.toggle();
@@ -78,6 +79,7 @@ export function createInput(
     // Escape / menu toggles
     if (e.key === 'Escape') {
       if (inventory.open) return inventory.toggle();
+      if (craftingMenu.open) return craftingMenu.toggle();
       escapeMenuState.open = !escapeMenuState.open;
       escapeMenuState.hovered = -1;
       return;
@@ -160,7 +162,7 @@ export function createInput(
       Object.assign(state.placingBlock, { x: gx, y: gy });
     }
 
-    craftingMenu.handleMouseMove(mx, my, canvas.width, canvas.height);
+    craftingMenu.handleMouseMove(mx, my, VIEW_W, VIEW_H);
     inventory.handleMouseMove(mx, my, VIEW_W, VIEW_H, e);
 
     if (escapeMenuState.open) {
@@ -175,35 +177,73 @@ export function createInput(
     }
   }
 
-    function onMouseDown(e) {
+  function onMouseDown(e) {
     if (chatOpen) return;
     const { mx, my } = windowToCanvas(canvas, e, VIEW_W, VIEW_H);
+    let worldObjects = [];
 
     // --- Place block if we are in placement mode ---
     if (state?.placingBlock) {
       const { id, x, y, slotIndex } = state.placingBlock;
 
-      // Place the block at the snapped grid position
-      placeBlock?.(id, x, y);
+      const sx = Math.floor(x / TILE_SIZE) * TILE_SIZE;
+      const sy = Math.floor(y / TILE_SIZE) * TILE_SIZE;
 
-      // Consume 1 from the corresponding inventory slot, if valid
-      if (typeof slotIndex === 'number' && inventory?.slots?.[slotIndex]) {
-        const slot = inventory.slots[slotIndex];
+      if (worldObjects.some(o => o.x === sx && o.y === sy)) {
+        // dialogueRef.current = { text: 'Block already exists here.', frame: 0, duration: 80 };
+        return;
+      }
 
-        if (typeof slot.count === 'number') {
-          slot.count -= 1;
-          if (slot.count <= 0) {
-            slot.itemId = null;
-            slot.item = null;
-            slot.count = 0;
-          }
+      // Lookup item definition
+      const slot = typeof slotIndex === 'number' ? inventory?.slots?.[slotIndex] : null;
+      const itemDef = slot?.itemId ? itemsData.find(i => i.id === slot.itemId) : null;
+      const allowOnPlayer = itemDef?.placeOnPlayer ?? false;
+
+      // --- Distance check ---
+      const MAX_PLACE_DIST = 48;
+      const dx = x + TILE_SIZE / 2 - player.x;
+      const dy = y + TILE_SIZE / 2 - player.y;
+      if ((dx*dx + dy*dy) > MAX_PLACE_DIST * MAX_PLACE_DIST) {
+        // dialogueRef.current = { text: 'Too far away to place block.', frame: 0, duration: 60 };
+        return;
+      }
+
+      // --- Player collision check ---
+      if (!allowOnPlayer) {
+        const PLAYER_WIDTH  = 0.85 * TILE_SIZE;
+        const PLAYER_HEIGHT = 0.85 * TILE_SIZE;
+        const blockLeft   = x;
+        const blockRight  = x + TILE_SIZE;
+        const blockTop    = y;
+        const blockBottom = y + TILE_SIZE;
+        const playerLeft  = player.x - PLAYER_WIDTH / 2;
+        const playerRight = player.x + PLAYER_WIDTH / 2;
+        const playerTop   = player.y - PLAYER_HEIGHT / 2;
+        const playerBottom= player.y + PLAYER_HEIGHT / 2;
+
+        const overlapsPlayer =
+          blockRight  > playerLeft &&
+          blockLeft   < playerRight &&
+          blockBottom > playerTop &&
+          blockTop    < playerBottom;
+
+        if (overlapsPlayer) {
+          // dialogueRef.current = { text: 'Cannot place block on yourself!', frame: 0, duration: 60 };
+          return;
         }
       }
 
-      // If we still have the item, keep placement mode; otherwise cancel it
-      const slot = typeof slotIndex === 'number' ? inventory?.slots?.[slotIndex] : null;
-      if (!slot || !slot.itemId) {
-        // state.placingBlock = null;
+      // --- Place block normally ---
+      placeBlock?.(id, x, y);
+
+      // Consume item
+      if (slot) {
+        slot.count--;
+        if (slot.count <= 0) {
+          slot.itemId = null;
+          slot.item = null;
+          slot.count = 0;
+        }
       }
 
       return;
@@ -239,18 +279,9 @@ export function createInput(
       });
       return;
     }
-
-    // Hotbar click
-    const layout = getHotbarLayout(null, canvas.width, canvas.height);
-    const rects = layout && getHotbarSlotRects(layout);
-    rects?.forEach((r, i) => {
-      if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h)
-        onSelectHotbar?.(i);
-    });
-
     // Left / right click dialogue
     const type = e.button === 2 ? 'Right Click!' : 'Left Click!';
-    dialogueRef.current = { text: type, frame: 0, duration: 90 };
+    // dialogueRef.current = { text: type, frame: 0, duration: 90 };
   }
 
   const onContextMenu = e => {
@@ -264,29 +295,47 @@ export function createInput(
   // ---------- chat overlay ----------
   function drawChatPrompt(ctx, w = VIEW_W, h = VIEW_H) {
     if (!chatOpen) return;
+
     const boxW = 400, boxH = 28;
-    const x = (w - boxW) / 2, y = h - boxH - 20;
-    const text = chatBuffer || '';
+    const x = (w - boxW) / 2;
+    const y = h - boxH - 20;
+
+    const text = chatBuffer || "";
 
     ctx.save();
-    ctx.fillStyle = '#000';
-    ctx.fillRect(x, y, boxW, boxH);
-    ctx.strokeStyle = '#888';
-    ctx.strokeRect(x, y, boxW, boxH);
-    ctx.font = '14px monospace';
-    ctx.fillStyle = chatMode === 'command' ? '#6cf' : '#fff';
-    ctx.fillText(text, x + 45, y + 18);
 
-    if (chatMode === 'command' && chatBuffer.startsWith('/')) {
-      const base = chatBuffer.slice(1).split(/\s+/)[0] || '';
+    // --- Box ---
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x, y, boxW, boxH);
+    ctx.strokeStyle = "#888";
+    ctx.strokeRect(x, y, boxW, boxH);
+
+    // --- Text ---
+    ctx.font = "14px monospace";
+    ctx.fillStyle = chatMode === "command" ? "#6cf" : "#fff";
+    ctx.textAlign = "left";         // <-- THE IMPORTANT FIX
+    ctx.textBaseline = "middle";
+
+    const textX = x + 8;            // proper left padding
+    const textY = y + boxH / 2;
+
+    ctx.fillText(text, textX, textY);
+
+    // --- Autocomplete ghost ---
+    if (chatMode === "command" && chatBuffer.startsWith("/")) {
+      const base = chatBuffer.slice(1).split(/\s+/)[0] || "";
       const suggestion =
         tabMatches[tabIndex] ||
         KNOWN_COMMANDS.find(c => c.startsWith(base) && c !== base);
+
       if (suggestion) {
-        ctx.fillStyle = '#fff';
-        ctx.fillText('/' + suggestion, x + 45, y + 18);
+        const ghost = "/" + suggestion;
+
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fillText(ghost, textX, textY);
       }
     }
+
     ctx.restore();
   }
 

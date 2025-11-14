@@ -53,7 +53,7 @@ export default {
   solid: true,
   texture: '/tilesets/fence.png',
 
-  recipe: { requires: [{ id: 'wood', count: 2 }], time: 1 },
+  recipe: { requires: [{ id: 'stone', count: 2 }], time: 1 },
 
   _ensureImageLoaded() {
     if (this._img) return;
@@ -124,5 +124,7 @@ export default {
       dw: ts * scale,
       dh: ts * scale,
     };
+
+    
   }
 };

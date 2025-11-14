@@ -1,3 +1,5 @@
+import { TILE_SIZE } from "../constants";
+
 // stuff/blocks/Campfire.js
 export default {
   id: 'campfire',
@@ -75,21 +77,22 @@ export default {
     const frames = 4;
     const frame = Math.floor((performance.now() / 1000) * this.animationSpeed) % frames;
 
-    const sy = frame * 16; // crop the correct vertical frame
+    const sy = frame * 9; // crop the correct vertical frame
 
     // Fire flicker (ONLY fire, NOT base)
     const alpha =
       0.9 + Math.sin(performance.now() * 0.01) * this.flickerRange;
-    const fireSize = size * 0.75
+    const fireSizeX = size * 0.5
+    const fireSizeY = size * 0.75
 
     ctx.save();
     ctx.globalAlpha = alpha;
 
     ctx.drawImage(this._fireImg,
       0, sy,      // src
-      16, 16,     // src size
-      dx + 6, dy - 4,     // dest
-      fireSize, fireSize  // <-- THIS IS CORRECT
+      5, 9,     // src size
+      dx + 8.5, dy - 8,     // dest
+      fireSizeX, fireSizeY  // <-- THIS IS CORRECT
     );
 
     ctx.restore();

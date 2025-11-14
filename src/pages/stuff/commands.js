@@ -16,6 +16,8 @@ import { TILE_SIZE } from './constants.js';
  * @returns {object} command runner
  */
 export function createCommandRunner({ placeBlock, player, inventory, dialogueRef, state }) {
+  fromCommand: true | false
+
   function say(msg) {
     if (dialogueRef)
       dialogueRef.current = { text: msg, frame: 0, duration: 240 };
@@ -38,11 +40,12 @@ export function createCommandRunner({ placeBlock, player, inventory, dialogueRef
 
         // ✅ Ghost placement preview mode
         state.placingBlock = {
-          id,
-          def,
-          x: player.x,
-          y: player.y,
-        };
+        id,
+        def,
+        x: player.x,
+        y: player.y,
+        fromCommand: true,
+      };
         say(`Placing ${id}... move cursor and click to confirm.`);
         return;
       }
