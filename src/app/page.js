@@ -16,6 +16,7 @@ function getCookie(name) {
     ?.split("=")[1];
 }
 
+/*
 async function run({ input, router }) {
   try {
     const response = await fetch('/api/generate', {
@@ -32,13 +33,75 @@ async function run({ input, router }) {
     );
   } catch (error) {
     console.error('Error during chat session:', error);
+
+
+    
   }
 }
+  */
 
 export default function Home() {
   const router = useRouter();
   const [blocks, setBlocks] = useState([]);
   const [input, setInput] = useState("");
+  const [questionType, setQuestionType] = useState("DBQ");
+  const [fileName, setFileName] = useState(null);
+const [fileMessage, setFileMessage] = useState(null);
+
+async function run({ input, router, questionType = "DBQ" }) {
+  try {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: `Grade this APUSH ${questionType}: ${input}` }),
+    });
+
+    if (!response.ok) throw new Error('Network response was not ok');
+
+    const data = await response.json();
+    router.push(
+      `/result?response=${encodeURIComponent(data.response)}&input=${encodeURIComponent(input)}`
+    );
+  } catch (error) {
+    console.error('Error during chat session:', error);
+  }
+}
+const handleFileChange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  setFileName(file.name);
+  setFileMessage(null);
+
+  const acceptTextTypes = [
+    "text/",
+    "application/json",
+    "application/rtf",
+    "application/xml",
+  ];
+
+  if (acceptTextTypes.some(t => file.type.startsWith(t)) || /\.(txt|md|json|csv|rtf|xml)$/i.test(file.name)) {
+    try {
+      const text = await file.text();
+      setInput(prev => (prev ? prev + "\n\n" + text : text));
+    } catch (err) {
+      setFileMessage("Could not read file contents.");
+      console.error(err);
+    }
+    return;
+  }
+
+  if (/\.(pdf|docx|doc|pages)$/i.test(file.name) || file.type === "application/pdf") {
+    setFileMessage("File accepted but not extracted in-browser. Please paste text or upload a .txt/.md file.");
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    setInput(prev => (prev ? prev + "\n\n" + text : text));
+  } catch {
+    setFileMessage("Unsupported file type for extraction. Paste text instead.");
+  }
+};
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [isBgSettingsOpen, setIsBgSettingsOpen] = useState(false);
   const [activeBgEffect, setActiveBgEffect] = useState(null);
@@ -92,7 +155,7 @@ export default function Home() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsPopupOpen(true);
-    await run({ input, router });
+    await run({ input, router, questionType });
   };
 
   const togglePopup = () => setIsPopupOpen(!isPopupOpen);
@@ -326,7 +389,7 @@ export default function Home() {
                 filter: "blur(2px) brightness(1.15) contrast(1.2)",
                 maskImage: "linear-gradient(to bottom, rgba(0,0,0,1), rgba(0,0,0,0))",
                 WebkitMaskImage:
-                  "linear-gradient(to bottom, rgba(0,0,1,1), rgba(0,0,0,0))",
+                  "linear-gradient(to bottom, rgba(0,0,0,1), rgba(0,0,0,0))",
                 mixBlendMode: "lighten",
               }}
               initial={blockInitial}
@@ -502,22 +565,53 @@ export default function Home() {
                 The APUSH DBQ Grader
               </h2>
 
-              <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
-                <textarea
-                  rows={6}
-                  placeholder="Paste your DBQ response here..."
-                  className="w-full p-4 border rounded-xl shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 resize-none"
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                  }}
-                />
+                            <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit}>
+                              <div className="w-full flex items-center justify-start gap-4">
+  <label className="text-sm text-gray-600">Question Type</label>
+  <select
+    value={questionType}
+    onChange={(e) => setQuestionType(e.target.value)}
+    className="p-2 border rounded-lg bg-white text-sm"
+    aria-label="Select question type"
+  >
+    <option value="DBQ">DBQ (Document-Based Question)</option>
+    <option value="SAQ">SAQ (Short Answer Question)</option>
+    <option value="LEQ">LEQ (Long Essay Question)</option>
+  </select>
+</div>
+                <div className="flex gap-4 items-start">
+                  <label className="flex flex-col items-center justify-center w-28 p-3 bg-white/30 border border-gray-200 rounded-xl cursor-pointer text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 16v1a2 2 0 002 2h14a2 2 0 002-2v-1M16 8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span className="text-sm">Upload</span>
+                    <input
+                      type="file"
+                      accept="text/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,.pages,.txt,.md,.doc,.docx,.pdf"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+              
+                  <div className="flex-1">
+                    <textarea
+                      rows={6}
+                      placeholder="Paste your DBQ response here..."
+                      className="w-full p-4 border rounded-xl shadow-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-purple-400 resize-none"
+                      value={input}
+                      onChange={(e) => { setInput(e.target.value); }}
+                    />
+                    <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
+                      <div>{fileName ? `Loaded: ${fileName}` : "No file loaded"}</div>
+                      <div className="text-red-500">{fileMessage}</div>
+                    </div>
+                  </div>
+                </div>
+              
                 <button
                   type="submit"
                   className="px-6 py-3 text-lg font-semibold text-white bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg hover:scale-105 transition-transform"
-                  style={{
-                    transform: "translateY(35px)"
-                  }}
+                  style={{ transform: "translateY(35px)" }}
                 >
                   Grade Now
                 </button>
@@ -576,3 +670,11 @@ export default function Home() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
