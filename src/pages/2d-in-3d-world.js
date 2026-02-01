@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import LoadingScreen from './stuff/loadingScreen';
-import Game from './stuff/game';
+import LoadingScreen from '../app/stuff/loadingScreen';
+import Game from '../app/stuff/game';
 
 export default function TwoDIn3DWorld() {
   const [loaded, setLoaded] = useState(false);
