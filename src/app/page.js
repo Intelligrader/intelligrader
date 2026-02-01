@@ -200,7 +200,7 @@ const handleFileChange = async (e) => {
             background:
               'linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.02), rgba(255,255,255,0.10))',
             boxShadow:
-              'inset 0 0 24px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.10)',
+              'inset 0 0 24px rgba(14, 13, 13, 0.18), 0 0 60px rgba(2, 2, 2, 0.1)',
             transform: 'translateZ(0)', // avoid flicker
           }}
           animate={{ y: [0, -2, 0, 2, 0] }}
