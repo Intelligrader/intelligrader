@@ -12,9 +12,10 @@ const getHTMLFromMarkdown = (markdown) => {
 
 export default function Result() {
   const router = useRouter();
-  const { response, input } = router.query;
+  const { response, input, questionType } = router.query;
   const responseAsString = Array.isArray(response) ? response[0] : response;
   const typedInput = Array.isArray(input) ? input[0] : input;
+  const typedQuestionType = Array.isArray(questionType) ? questionType[0] : (questionType || 'DBQ');
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
@@ -50,11 +51,16 @@ export default function Result() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `Grade this APUSH DBQ: ${typedInput}` }),
+        body: JSON.stringify({
+          questionType: typedQuestionType,
+          studentAnswer: typedInput,
+        }),
       });
       if (!res.ok) throw new Error('Network response not ok');
       const data = await res.json();
-      router.push(`/result?response=${encodeURIComponent(data.response)}&input=${encodeURIComponent(typedInput)}`);
+      router.push(
+        `/result?response=${encodeURIComponent(data.response)}&input=${encodeURIComponent(typedInput)}&questionType=${encodeURIComponent(typedQuestionType)}`
+      );
       setIsPopupOpen(false);
     } catch (err) {
       console.error('Error during retry:', err);

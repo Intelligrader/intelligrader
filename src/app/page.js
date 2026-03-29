@@ -53,14 +53,17 @@ async function run({ input, router, questionType = "DBQ" }) {
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: `Grade this APUSH ${questionType}: ${input}` }),
+      body: JSON.stringify({
+        questionType,
+        studentAnswer: input,
+      }),
     });
 
     if (!response.ok) throw new Error('Network response was not ok');
 
     const data = await response.json();
     router.push(
-      `/result?response=${encodeURIComponent(data.response)}&input=${encodeURIComponent(input)}`
+      `/result?response=${encodeURIComponent(data.response)}&input=${encodeURIComponent(input)}&questionType=${encodeURIComponent(questionType)}`
     );
   } catch (error) {
     console.error('Error during chat session:', error);
