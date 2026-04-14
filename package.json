@@ -17,6 +17,7 @@
     "marked": "^15.0.6",
     "motion": "^11.17.0",
     "next": "^16.1.4",
+    "normalize-range": "^0.1.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

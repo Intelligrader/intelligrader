@@ -673,11 +673,3 @@ const handleFileChange = async (e) => {
     </div>
   );
 }
-
-
-
-
-
-
-
-
