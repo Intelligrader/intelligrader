@@ -53,14 +53,17 @@ async function run({ input, router, questionType = "DBQ" }) {
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: `Grade this APUSH ${questionType}: ${input}` }),
+      body: JSON.stringify({
+        questionType,
+        studentAnswer: input,
+      }),
     });
 
     if (!response.ok) throw new Error('Network response was not ok');
 
     const data = await response.json();
     router.push(
-      `/result?response=${encodeURIComponent(data.response)}&input=${encodeURIComponent(input)}`
+      `/result?response=${encodeURIComponent(data.response)}&input=${encodeURIComponent(input)}&questionType=${encodeURIComponent(questionType)}`
     );
   } catch (error) {
     console.error('Error during chat session:', error);
@@ -200,7 +203,7 @@ const handleFileChange = async (e) => {
             background:
               'linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0.02), rgba(255,255,255,0.10))',
             boxShadow:
-              'inset 0 0 24px rgba(255,255,255,0.18), 0 0 60px rgba(255,255,255,0.10)',
+              'inset 0 0 24px rgba(14, 13, 13, 0.18), 0 0 60px rgba(2, 2, 2, 0.1)',
             transform: 'translateZ(0)', // avoid flicker
           }}
           animate={{ y: [0, -2, 0, 2, 0] }}
@@ -670,11 +673,3 @@ const handleFileChange = async (e) => {
     </div>
   );
 }
-
-
-
-
-
-
-
-
